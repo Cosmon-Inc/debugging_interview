@@ -101,36 +101,4 @@ function App() {
   );
 }
 
-// Basic Error Boundary (for demonstration - usually a separate file)
-// This is a very simple one. Real ones are more complex.
-// To use it: <ErrorBoundary><UserList /></ErrorBoundary>
-/*
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error: error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="error">
-          <h2>Something went wrong in this section.</h2>
-          <p>{this.state.error && this.state.error.toString()}</p>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-*/
-
 export default App; 
