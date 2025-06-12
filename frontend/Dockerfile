@@ -1,4 +1,4 @@
-# Use an official Node runtime as a parent image
+# Use an official Node runtime as a parent image (slim version for faster downloads)
 FROM node:18-alpine
 
 # Set the working directory in the container
@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package.json and package-lock.json (or yarn.lock)
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (using npm ci for faster, deterministic builds)
+RUN npm ci --only=production --silent
 
 # Copy the rest of the application code
 COPY . .
