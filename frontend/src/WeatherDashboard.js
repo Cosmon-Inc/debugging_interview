@@ -43,8 +43,8 @@ function WeatherDashboard() {
 
   return (
     <div className="container">
-      <h2>Weather Dashboard</h2>
-      <p>Demonstrates various issues with temperature calculations, API calls, backend counters, and configuration management.</p>
+      <h2>Weather Dashboard (Mock Data)</h2>
+      <p>Demonstrates various issues with temperature calculations, mock weather service, backend counters, and configuration management.</p>
       <input
         type="text"
         placeholder="Enter city"
@@ -65,7 +65,7 @@ function WeatherDashboard() {
         </div>
       )}
        <p style={{marginTop: '10px', fontSize: '0.9em'}}>
-        Try "London" or any city. Check the temperature calculations and request counter behavior.
+        Try "London", "Paris", "Tokyo", "Berlin", or "Madrid". Check the temperature calculations and request counter behavior.
       </p>
     </div>
   );

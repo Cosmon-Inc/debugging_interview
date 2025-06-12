@@ -41,12 +41,12 @@ def init_db():
     user_count = cursor.fetchone()[0]
     print(f"Current user count after schema application: {user_count}")
 
-    # Populate with a large number of additional users if needed
-    # We aim for a total of 10000 + initial users from schema.
-    # Let's target a total of roughly 10003 users.
+    # Populate with additional users for performance testing
+    # We aim for a total of 500 + initial users from schema.
+    # Let's target a total of roughly 503 users.
     # The initial 3 users are already inserted by init_db.sql
     
-    num_additional_users_to_create = 10000
+    num_additional_users_to_create = 500
     
     if user_count < (3 + num_additional_users_to_create): # Check if we need to add more
         print(f"Populating additional {num_additional_users_to_create} users...")

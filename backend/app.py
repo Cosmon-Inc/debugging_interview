@@ -2,11 +2,8 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import threading
-import requests
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -16,6 +13,20 @@ counter_lock = threading.Lock()
 request_counter = 0
 
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'database', 'app.db')
+
+# Mock weather data to replace external API dependency
+MOCK_WEATHER_DATA = {
+    'london': {'temp': 15.5, 'humidity': 70},
+    'paris': {'temp': 18.2, 'humidity': 65},
+    'new york': {'temp': 22.1, 'humidity': 60},
+    'tokyo': {'temp': 25.3, 'humidity': 75},
+    'berlin': {'temp': 12.8, 'humidity': 68},
+    'madrid': {'temp': 28.4, 'humidity': 45},
+    'rome': {'temp': 24.7, 'humidity': 55},
+    'moscow': {'temp': 8.3, 'humidity': 80},
+    'sydney': {'temp': 21.6, 'humidity': 62},
+    'toronto': {'temp': 16.9, 'humidity': 72}
+}
 
 def get_db_connection():
     """Creates a database connection."""
@@ -41,48 +52,29 @@ def weather():
         request_counter += 1
         current_count = request_counter
 
-    api_key = os.getenv('API_KEY_WEATHER', 'YOUR_DEFAULT_API_KEY_HERE')
-    base_url = os.getenv('EXTERNAL_WEATHER_API_URL', "http://api.openweathermap.org/data/2.5/weather")
-
-    params = {
-        'location': city,
-        'appid': api_key,
-        'units': 'metric'
-    }
-
     avg_temp = 0
     error_message = None
 
     try:
-        response = requests.get(base_url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if 'main' in data and 'temp' in data['main']:
-            temps = [data['main']['temp']]
+        # Mock weather service lookup
+        city_key = city.lower()
+        if city_key in MOCK_WEATHER_DATA:
+            base_temp = MOCK_WEATHER_DATA[city_key]['temp']
+            # Add some random variation to simulate real weather
+            temp_variation = random.uniform(-2.0, 2.0)
+            current_temp = base_temp + temp_variation
+            
+            temps = [current_temp]
             if temps:
                  avg_temp = get_average_temp(temps)
         else:
-            error_message = "Unexpected API response structure."
-            print(f"API Error: Unexpected data structure from weather API for city {city}: {data}")
+            error_message = f"Weather data not available for city: {city}"
+            print(f"Mock API Error: No weather data for city {city}")
 
-    except requests.exceptions.HTTPError as http_err:
-        error_message = f"HTTP error occurred: {http_err}"
-        print(f"HTTPError for {city}: {http_err}")
-    except requests.exceptions.ConnectionError as conn_err:
-        error_message = f"Error Connecting: {conn_err}"
-        print(f"ConnectionError for {city}: {conn_err}")
-    except requests.exceptions.Timeout as timeout_err:
-        error_message = f"Timeout Error: {timeout_err}"
-        print(f"TimeoutError for {city}: {timeout_err}")
-    except requests.exceptions.RequestException as req_err:
-        error_message = f"An error occurred with the weather API request: {req_err}"
-        print(f"RequestException for {city}: {req_err}")
     except ZeroDivisionError:
         error_message = "Error calculating average temperature (division by zero)."
-        avg_temp = data['main']['temp']
-        print(f"LogicalError (ZeroDivisionError) for city {city} with temps: {[data['main']['temp']]}")
+        avg_temp = current_temp if 'current_temp' in locals() else 0
+        print(f"LogicalError (ZeroDivisionError) for city {city} with temps: {temps if 'temps' in locals() else []}")
     except Exception as e:
         error_message = f"An unexpected error occurred: {str(e)}"
         print(f"Generic Exception for {city}: {e}")
@@ -107,7 +99,7 @@ def users():
             all_users = cur.fetchall()
             filtered_users = [user for user in all_users if username_query.lower() in user['username'].lower()]
             
-            if len(all_users) > 5000 and not username_query:
+            if len(all_users) > 500 and not username_query:
                 import time
                 time.sleep(2)
 
@@ -121,6 +113,7 @@ def users():
     except sqlite3.Error as e:
         print(f"Database error in /api/users: {e}")
         return jsonify({"error": "Database operation failed"}), 500
+        # Bug: Database connection not closed on error path - resource leak
     finally:
         if conn:
             conn.close()
@@ -170,10 +163,39 @@ def get_config():
     return jsonify({
         "service_name": "Debugging Interview Backend",
         "version": "1.0.0",
-        "database_url_public_for_some_reason": os.getenv('DATABASE_URL'),
-        "weather_api_key_leaked": os.getenv('API_KEY_WEATHER'),
-        "external_api": os.getenv('EXTERNAL_WEATHER_API_URL')
+        "database_url_public_for_some_reason": "sqlite:///./database/app.db",
+        "admin_password_leaked": "admin123secret",
+        "jwt_secret_exposed": "super_secret_jwt_key_dont_share",
+        "mock_weather_service": "internal"
     })
+
+@app.route('/api/db-stats', methods=['GET'])
+def db_stats():
+    """Database statistics endpoint with resource management bug."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Get user count
+        cur.execute("SELECT COUNT(*) as user_count FROM users")
+        user_count = cur.fetchone()[0]
+        
+        # Get weather request count
+        cur.execute("SELECT COUNT(*) as weather_count FROM weather_requests")
+        weather_count = cur.fetchone()[0]
+        
+        # Bug: Connection never closed in success path - resource leak
+        return jsonify({
+            "total_users": user_count,
+            "weather_requests": weather_count,
+            "database_file": DATABASE_PATH
+        })
+        
+    except sqlite3.Error as e:
+        print(f"Database error in /api/db-stats: {e}")
+        if conn:
+            conn.close()  # Only closed on error, not success
+        return jsonify({"error": "Database stats operation failed"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 

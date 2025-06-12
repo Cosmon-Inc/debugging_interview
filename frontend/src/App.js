@@ -16,6 +16,7 @@ function App() {
   const [showUserList, setShowUserList] = useState(true);
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [appError, setAppError] = useState(null); // For demonstrating error boundary need
+  const [dbStats, setDbStats] = useState(null);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -40,6 +41,16 @@ function App() {
       console.log(val);
     } catch (error) {
       setAppError("A simulated critical error occurred in App.js!");
+    }
+  };
+
+  const fetchDbStats = async () => {
+    try {
+      const response = await fetch('/api/db-stats');
+      const data = await response.json();
+      setDbStats(data);
+    } catch (error) {
+      console.error('Error fetching DB stats:', error);
     }
   };
   
@@ -94,6 +105,15 @@ function App() {
       {showUserList && <UserList />}
       <hr/>
       <button onClick={triggerAppError}>Trigger Simulated App Error</button>
+      <button onClick={fetchDbStats} style={{marginLeft: '10px'}}>Fetch DB Stats</button>
+      {dbStats && (
+        <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#f0f0f0'}}>
+          <h4>Database Statistics:</h4>
+          <p>Total Users: {dbStats.total_users}</p>
+          <p>Weather Requests: {dbStats.weather_requests}</p>
+          <p>Database File: {dbStats.database_file}</p>
+        </div>
+      )}
       <p style={{marginTop: "20px", fontSize: "0.8em", color: "gray"}}>
         Open your browser's developer console to see detailed logs and errors.
       </p>

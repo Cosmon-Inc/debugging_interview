@@ -24,20 +24,25 @@ services:
       - "5000:5000"
     volumes:
       - ./backend:/app
-    env_file:
-      - .env
     networks:
       - app-network
     depends_on:
       - db
 
   db:
-    image: alpine:latest # Using a minimal image as SQLite is file-based
+    image: alpine:latest
+    command: sh -c "mkdir -p /shared/database && tail -f /dev/null"
     volumes:
-      - ./backend/database:/app/database
-      - ./backend/init_db.sql:/app/init_db.sql
+      - ./backend/database:/shared/database
+      - ./backend/init_db.sql:/shared/init_db.sql
+      - ./backend/init_db.py:/shared/init_db.py
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "test", "-f", "/shared/database/app.db"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   nginx:
     build:
