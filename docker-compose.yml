@@ -9,6 +9,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - /app/node_modules
     environment:
       - WATCHPACK_POLLING=true
     depends_on:
