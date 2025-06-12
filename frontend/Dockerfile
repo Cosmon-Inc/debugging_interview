@@ -4,10 +4,10 @@ FROM node:18-alpine
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy package.json and package-lock.json (or yarn.lock)
+# Copy package.json and package-lock.json first for better caching
 COPY package*.json ./
 
-# Install dependencies (using npm ci for faster, deterministic builds)
+# Install dependencies
 RUN npm ci --silent
 
 # Copy the rest of the application code
