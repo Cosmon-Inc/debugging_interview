@@ -3,69 +3,119 @@ import React, { useState, useEffect } from 'react';
 function UserList() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [selectedUsers, setSelectedUsers] = useState(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '20'
+      });
+      
+      if (searchTerm) {
+        params.append('username', searchTerm);
+      }
+
+      const response = await fetch(`http://localhost:5000/api/users?${params}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    
-    const query = searchTerm ? `?username=${encodeURIComponent(searchTerm)}` : '';
+    fetchUsers();
+  }, [page, searchTerm]);
 
-    fetch(`/api/users${query}`)
-      .then(response => {
-        if (!response.ok) {
-          console.warn(`UserList fetch response not OK: ${response.status}`)
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (!Array.isArray(data)) {
-            console.error("UserList expected an array, but received:", data);
-            setUsers(data);
-        } else {
-            setUsers(data);
-        }
-      })
-      .catch(err => {
-        console.error("Failed to fetch users:", err);
-        setError(`Failed to fetch users: ${err.message}. Check console for more details.`);
-        setUsers([]);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [searchTerm]);
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+    setPage(1); // Reset to first page when searching
+  };
 
-  if (loading) return <p>Loading users...</p>;
-  
-  if (error) return <p className="error">{error}</p>;
-
-  let userItems;
-  try {
-    userItems = users.map(user => (
-      <li key={user.id || user.username}> 
-        {user.username} ({user.email})
-      </li>
-    ));
-  } catch (e) {
-    console.error("Error rendering user list:", e);
-    return <p className="error">Error rendering user list. Data might be in unexpected format.</p>;
-  }
+  const handleUserSelection = (userId, isSelected) => {
+    const newSelectedUsers = new Set(selectedUsers);
+    if (isSelected) {
+      newSelectedUsers.add(userId);
+    } else {
+      newSelectedUsers.delete(userId);
+    }
+    setSelectedUsers(newSelectedUsers);
+  };
 
   return (
-    <div className="container">
+    <div style={{ marginTop: '20px' }}>
       <h2>User List</h2>
-      <p>This list demonstrates performance issues when fetching all users, and data validation problems if the API returns unexpected data.</p>
-      <input 
-        type="text"
-        placeholder="Search by username..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        style={{marginBottom: '10px', width: 'calc(100% - 22px)'}}
-      />
-      {users.length === 0 && !loading && <p>No users found.</p>}
-      {users.length > 0 && <ul>{userItems}</ul>}
+      
+      <div style={{ marginBottom: '10px' }}>
+        <input
+          type="text"
+          placeholder="Search users..."
+          value={searchTerm}
+          onChange={handleSearch}
+          style={{ width: '300px', padding: '5px' }}
+        />
+      </div>
+
+      {loading ? (
+        <p>Loading users...</p>
+      ) : (
+        <div>
+          <p>Showing {users.length} users (Page {page})</p>
+          <p>Selected: {selectedUsers.size} users</p>
+          
+          {/* Using array index as key instead of user.id */}
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {users.map((user, index) => (
+              <li 
+                key={index} // Should use user.id, not array index
+                style={{ 
+                  padding: '10px', 
+                  margin: '5px 0', 
+                  border: '1px solid #ddd',
+                  backgroundColor: selectedUsers.has(user.id) ? '#e3f2fd' : 'white'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(user.id)}
+                  onChange={(e) => handleUserSelection(user.id, e.target.checked)}
+                  style={{ marginRight: '10px' }}
+                />
+                <strong>{user.username}</strong> - {user.email}
+                <span style={{ marginLeft: '10px', color: '#666' }}>
+                  (ID: {user.id})
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div style={{ marginTop: '10px' }}>
+            <button 
+              onClick={() => setPage(prev => Math.max(1, prev - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </button>
+            <span style={{ margin: '0 10px' }}>Page {page}</span>
+            <button 
+              onClick={() => setPage(prev => prev + 1)}
+              disabled={users.length < 20}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

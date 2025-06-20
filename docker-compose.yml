@@ -1,62 +1,50 @@
 version: '3.8'
-services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - /app/node_modules
-    environment:
-      - WATCHPACK_POLLING=true
-    depends_on:
-      - backend
-    networks:
-      - app-network
 
+services:
+  # Environment variable precedence conflict
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
+    build: ./backend
+    ports: 
       - "5000:5000"
     volumes:
       - ./backend:/app
-    networks:
-      - app-network
-    depends_on:
-      - db
-
-  db:
-    image: alpine:latest
-    command: sh -c "mkdir -p /shared/database && tail -f /dev/null"
-    volumes:
-      - ./backend/database:/shared/database
-      - ./backend/init_db.sql:/shared/init_db.sql
-      - ./backend/init_db.py:/shared/init_db.py
-    networks:
-      - app-network
+    environment:
+      - DEBUG=true
+      - FLASK_ENV=development
+      # Conflicting environment variables - DEBUG set multiple ways
+      - DEBUG=false  # This overrides the previous DEBUG=true causing confusion
+      - PYTHONUNBUFFERED=1
     healthcheck:
-      test: ["CMD", "test", "-f", "/shared/database/app.db"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      # Health check misconfiguration - wrong endpoint and conditions
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/nonexistent"] # Wrong endpoint!
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # Volume permission issues - container can't write to host volume
+      - ./frontend:/app:ro  # Read-only mount when it should be read-write for hot reloading
+      - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+      - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      - backend
 
   nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
+    build: ./nginx
     ports:
       - "80:80"
     depends_on:
       - frontend
       - backend
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge 
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3 
