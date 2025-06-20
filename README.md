@@ -135,7 +135,31 @@ This project is a full-stack application (React + Flask) deliberately riddled wi
 | **Security** | 1 | Authentication bypass vulnerabilities |
 | **Data Processing** | 2 | Mathematical errors, circular references |
 
-## Hints for Success
+## Specific Bug Location Hints & Symptoms
+
+### **Backend Issues (Look for these symptoms):**
+1. **Race Conditions**: Multiple rapid weather API calls show inconsistent request counters
+2. **Memory Growth**: Weather cache grows indefinitely - check memory usage over time
+3. **Math Errors**: Weather calculations seem wrong - compare weighted vs simple averages
+4. **Auth Bypass**: Try password "admin" or login with user ID < 10 (check database)
+5. **Resource Leaks**: Database connections not properly closed - check `/api/db-stats`
+6. **JSON Errors**: `/api/db-stats` endpoint fails with circular reference serialization
+
+### **Frontend Issues (Look for these symptoms):**
+7. **Context Re-renders**: React DevTools shows unnecessary component updates
+8. **Infinite Loops**: Browser becomes unresponsive, check console for render warnings
+9. **Stale Data**: User info in delayed notifications shows wrong/old username
+10. **Memory Leaks**: Check browser memory tab - notifications interval never stops
+11. **State Mutations**: User preference changes don't trigger re-renders
+12. **List Corruption**: User selection state gets mixed up when paginating
+13. **Performance**: **Typing in weather input freezes UI - use React Profiler**
+
+### **Infrastructure Issues (Check these areas):**
+14. **Environment Conflicts**: Backend logs show conflicting DEBUG values
+15. **Volume Permissions**: Hot reloading doesn't work - files are read-only
+16. **Health Checks**: `docker ps` shows backend as "unhealthy" status
+
+## Debugging Strategy
 
 - Focus on **systematic debugging** rather than random testing
 - Use **profiling tools** to identify performance bottlenecks (essential for Bug #13)
@@ -153,26 +177,93 @@ Good luck! This challenge reflects real-world debugging scenarios that senior en
 *   **Logs**: `docker-compose logs -f <service_name>` for detailed debugging
 *   **Container Stats**: `docker stats` to monitor resource usage during debugging
 
-## Complete Bug Reference
+## Complete Bug Reference & Debugging Guide
 
-### Backend Bugs (6):
+### Backend Bugs (6) - File: `backend/app.py`
 1. **Lines 15-16**: `user_sessions = {}; session_counter = 0` - Race condition without locks
+   - **Test**: Make multiple rapid weather API calls, observe inconsistent request counters
+   - **Symptom**: Counter values don't increment correctly under load
+   
 2. **Line 19**: `weather_cache = {}` - Unbounded cache causing memory exhaustion  
+   - **Test**: Make weather requests for different cities over time
+   - **Symptom**: Memory usage grows continuously, cache never clears
+   
 3. **Line 42**: `weights = [2 ** i for i in range(len(temps))]` - Exponential weight error
+   - **Test**: Compare weather calculations - later readings have exponentially more weight
+   - **Symptom**: Temperature averages skewed toward last few readings
+   
 4. **Lines 58-65**: Authentication bypass logic in `verify_session()` decorator
+   - **Test**: Try password "admin" or login with any user ID < 10
+   - **Symptom**: Authentication succeeds without proper credentials
+   
 5. **Lines 281-282**: Multiple database connections opened, only one closed
+   - **Test**: Call `/api/db-stats` multiple times, monitor database connections
+   - **Symptom**: Database connection pool exhaustion over time
+   
 6. **Line 302**: `stats['self_reference'] = stats` - Circular reference in JSON
+   - **Test**: Call `/api/db-stats` endpoint
+   - **Symptom**: JSON serialization error, endpoint returns 500
 
-### Frontend Bugs (7):
-7. **Lines 8-22**: Context value recreated on every render in `AppProvider`
-8. **Lines 47-50**: useEffect with `userPreferences` dependency causing infinite loop
-9. **Lines 53-62**: `fetchDelayedData` with empty dependency array missing `user`
-10. **Lines 65-72**: Interval created without cleanup function
-11. **Line 112**: Direct state mutation: `userPreferences[key] = value`
+### Frontend Bugs (7) - Files: `frontend/src/App.js`, `UserList.js`, `WeatherDashboard.js`
+7. **Lines 8-22 (App.js)**: Context value recreated on every render in `AppProvider`
+   - **Test**: Use React DevTools Profiler, observe unnecessary re-renders
+   - **Symptom**: All context consumers re-render on every state change
+   
+8. **Lines 47-50 (App.js)**: useEffect with `userPreferences` dependency causing infinite loop
+   - **Test**: Open browser console, observe continuous re-render warnings
+   - **Symptom**: Browser becomes unresponsive, infinite console logs
+   
+9. **Lines 53-62 (App.js)**: `fetchDelayedData` with empty dependency array missing `user`
+   - **Test**: Login, wait 2 seconds for delayed notification
+   - **Symptom**: Notification shows wrong/undefined username
+   
+10. **Lines 65-72 (App.js)**: Interval created without cleanup function
+    - **Test**: Use browser Memory tab, observe growing memory usage
+    - **Symptom**: Memory leak, interval continues after component unmount
+    
+11. **Line 112 (App.js)**: Direct state mutation: `userPreferences[key] = value`
+    - **Test**: Try toggling theme or changing preferences
+    - **Symptom**: UI doesn't update when preferences change
+    
 12. **Line 73 (UserList.js)**: Using array index as key: `key={index}` in UserList
+    - **Test**: Select users, then paginate or search
+    - **Symptom**: Selection state gets corrupted, wrong users appear selected
+    
 13. **Lines 9-25 (WeatherDashboard.js)**: Expensive computation on every render - **requires React Profiler**
+    - **Test**: Type in weather city input field
+    - **Symptom**: UI freezes while typing, main thread blocked
 
-### Infrastructure Bugs (3):
-14. **docker-compose.yml lines 10-13**: `DEBUG=true` then `DEBUG=false` - conflicting env vars
-15. **docker-compose.yml line 26**: `:ro` read-only volume mount preventing hot reload
-16. **docker-compose.yml line 17**: Health check uses wrong endpoint `/api/nonexistent`
+### Infrastructure Bugs (3) - File: `docker-compose.yml`
+14. **Lines 10-13**: `DEBUG=true` then `DEBUG=false` - conflicting env vars
+    - **Test**: Check backend container logs for environment variable conflicts
+    - **Symptom**: Inconsistent debug behavior, conflicting log levels
+    
+15. **Line 26**: `:ro` read-only volume mount preventing hot reload
+    - **Test**: Try modifying frontend files, check if changes auto-reload
+    - **Symptom**: Hot reloading doesn't work, files are read-only in container
+    
+16. **Line 17**: Health check uses wrong endpoint `/api/nonexistent`
+    - **Test**: Run `docker ps` and check container health status
+    - **Symptom**: Backend container shows as "unhealthy" despite working properly
+
+## Testing Commands for Verification
+
+```bash
+# Check container health
+docker ps
+
+# Monitor memory usage
+docker stats
+
+# Check backend logs
+docker-compose logs backend
+
+# Test endpoints manually
+curl http://localhost:5000/api/health      # Should work
+curl http://localhost:5000/api/nonexistent # Should fail (404)
+
+# Test authentication bypass
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"user1","password":"admin"}'
+```
