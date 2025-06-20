@@ -300,5 +300,14 @@ def db_stats():
         # conn2 never closed even on error - resource leak
         return jsonify({"error": "Database stats operation failed"}), 500
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Proper health check endpoint that should be used by Docker."""
+    return jsonify({
+        "status": "healthy",
+        "service": "Debugging Interview Backend",
+        "timestamp": time.time()
+    })
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
